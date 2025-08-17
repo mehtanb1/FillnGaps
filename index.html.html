@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI / ML / DL — Fill in the Blank</title>
+  <style>
+    :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+    body { margin: 0; padding: 24px; background:#f7f7fb; color:#111; }
+    .app { max-width: 900px; margin: 0 auto; background: #fff; border-radius: 14px; padding: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.07); }
+    h1 { margin-top: 0; font-size: 1.6rem; }
+    .options { background:#f1f4f8; padding:12px 16px; border-radius:10px; }
+    .options code { background:#fff; padding:2px 6px; border-radius:6px; border:1px solid #e3e7ef; }
+    ol.sents { counter-reset: item; list-style: none; padding: 0; margin: 18px 0; }
+    ol.sents > li { counter-increment: item; margin: 14px 0; padding: 14px 14px 12px; background:#fafbff; border:1px solid #e8ebf4; border-radius: 12px; }
+    ol.sents > li::before { content: counter(item) "."; font-weight: 700; margin-right: 8px; color:#4c5a76; }
+    .blank { display:inline-block; min-width: 72px; border-bottom:2px dotted #9aa4b2; margin: 0 6px; }
+    .entry { display:inline-block; }
+    input[type="text"] { padding: 8px 10px; border-radius: 8px; border:1px solid #cfd6e4; width: 260px; }
+    input[type="text"].wrong { border-color:#d33; background:#fff5f5; }
+    input[type="text"].right { border-color:#2a9d8f; background:#f1fbf9; }
+    .actions { display:flex; gap:12px; margin-top: 18px; }
+    button { border:0; padding:10px 14px; border-radius:10px; cursor:pointer; background:#4f46e5; color:#fff; font-weight:600; }
+    button.secondary { background:#e2e8f0; color:#111; }
+    .feedback { margin-top: 14px; font-weight: 600; }
+    .feedback.ok { color:#2a9d8f; }
+    .feedback.err { color:#b42318; }
+    small.hint { color:#5b6474; display:block; margin-top:6px; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <h1>Fill in the Blanks: AI vs. ML vs. DL</h1>
+
+    <p>Type the correct term into each blank. You can use full phrases or abbreviations; case does not matter. Options:</p>
+    <div class="options">
+      <p>
+        <strong>Choices:</strong>
+        <code>AI</code>, <code>Artificial Intelligence</code>,
+        <code>ML</code>, <code>Machine Learning</code>,
+        <code>DL</code>, <code>Deep Learning</code>
+      </p>
+      <small class="hint">Tip: Start typing and pick from the suggestions, or type the full term.</small>
+    </div>
+
+    <ol class="sents" id="sentences"></ol>
+
+    <div class="actions">
+      <button id="checkBtn">Check Answers</button>
+      <button class="secondary" id="resetBtn" title="Clear answers and reshuffle">Reset & Reshuffle</button>
+    </div>
+
+    <div id="feedback" class="feedback" aria-live="polite"></div>
+
+    <!-- Datalist with allowable terms -->
+    <datalist id="termOptions">
+      <option value="AI"></option>
+      <option value="Artificial Intelligence"></option>
+      <option value="ML"></option>
+      <option value="Machine Learning"></option>
+      <option value="DL"></option>
+      <option value="Deep Learning"></option>
+    </datalist>
+  </div>
+
+  <script>
+    // Utility: normalize an answer (case-insensitive, ignore spaces, dots, hyphens)
+    function norm(s) {
+      return (s || "")
+        .toLowerCase()
+        .replace(/\./g, "")
+        .replace(/-/g, "")
+        .replace(/\s+/g, "");
+    }
+
+    // Sentences & acceptable answers (no spoilers shown to the user)
+    const BANK = [
+      {
+        id: "ml",
+        text: `____ A subset of AI where algorithms learn patterns from data, but human experts manually select and engineer relevant features to improve performance. Feature engineering requires domain knowledge to extract meaningful inputs that enhance model accuracy.`,
+        accept: ["ml", "machinelearning"]
+      },
+      {
+        id: "ai",
+        text: `____ Rule-based systems that rely on predefined knowledge and logical inference to make decisions, typically using "if-then" rules crafted by human experts. These systems do not learn from data but apply human-encoded rules to solve problems.`,
+        accept: ["ai", "artificialintelligence"]
+      },
+      {
+        id: "dl",
+        text: `____ A subset of machine learning that uses multi-layered neural networks to automatically extract and learn hierarchical features from raw data. Unlike traditional machine learning, deep learning eliminates the need for manual feature engineering by learning representations directly from the data.`,
+        accept: ["dl", "deeplearning"]
+      }
+    ];
+
+    // Fisher–Yates shuffle
+    function shuffle(arr) {
+      const a = arr.slice();
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
+    const sentencesEl = document.getElementById("sentences");
+    const feedbackEl = document.getElementById("feedback");
+    const checkBtn = document.getElementById("checkBtn");
+    const resetBtn = document.getElementById("resetBtn");
+
+    // Build UI
+    function build(list) {
+      sentencesEl.innerHTML = "";
+      list.forEach((item, idx) => {
+        const li = document.createElement("li");
+
+        // Sentence with an input replacing the blank
+        const input = document.createElement("input");
+        input.type = "text";
+        input.setAttribute("list", "termOptions");
+        input.setAttribute("aria-label", `Answer for sentence ${idx + 1}`);
+        input.placeholder = "Type AI / ML / DL...";
+        input.dataset.id = item.id;
+        input.autocomplete = "off";
+
+        // Construct the text with an inline input
+        const before = document.createElement("span");
+        const after = document.createElement("span");
+
+        // Split on the first '____'
+        const parts = item.text.split("____");
+        before.textContent = parts[0];
+        after.textContent = parts[1] || "";
+
+        const blank = document.createElement("span");
+        blank.className = "blank entry";
+        blank.appendChild(input);
+
+        li.appendChild(before);
+        li.appendChild(blank);
+        li.appendChild(after);
+        sentencesEl.appendChild(li);
+      });
+    }
+
+    let order = shuffle(BANK);
+    build(order);
+
+    // Check answers
+    checkBtn.addEventListener("click", () => {
+      const inputs = sentencesEl.querySelectorAll("input[type=text]");
+      let wrong = [];
+      let rightCount = 0;
+
+      inputs.forEach((inp, idx) => {
+        const id = inp.dataset.id;
+        const item = order.find(x => x.id === id);
+        const val = norm(inp.value);
+        const ok = item.accept.includes(val);
+        inp.classList.remove("wrong", "right");
+        if (ok) {
+          rightCount++;
+          inp.classList.add("right");
+        } else {
+          wrong.push(idx + 1);
+          inp.classList.add("wrong");
+        }
+      });
+
+      if (wrong.length === 0) {
+        feedbackEl.className = "feedback ok";
+        feedbackEl.textContent = "✔ Great work! All three answers are correct.";
+      } else {
+        feedbackEl.className = "feedback err";
+        const which = wrong.map(n => `Sentence ${n}`).join(", ");
+        feedbackEl.textContent = `${which} ${wrong.length === 1 ? "is" : "are"} incorrect. Please try again.`;
+        // Focus the first incorrect input to guide the user
+        const firstWrong = sentencesEl.querySelector("input.wrong");
+        if (firstWrong) firstWrong.focus();
+      }
+    });
+
+    // Reset & reshuffle
+    resetBtn.addEventListener("click", () => {
+      order = shuffle(BANK);
+      build(order);
+      feedbackEl.textContent = "";
+    });
+  </script>
+</body>
+</html>
